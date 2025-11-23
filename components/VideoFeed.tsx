@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { EmbyItem } from '../types';
 import VideoCard from './VideoCard';
 import { RefreshCw, Film } from 'lucide-react';
@@ -9,11 +9,36 @@ interface VideoFeedProps {
   token: string;
   onRefresh?: () => void;
   isLoading?: boolean;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  initialIndex?: number;
+  onIndexChange?: (index: number) => void;
 }
 
-const VideoFeed: React.FC<VideoFeedProps> = ({ videos, serverUrl, token, onRefresh, isLoading }) => {
+const VideoFeed: React.FC<VideoFeedProps> = ({ 
+    videos, 
+    serverUrl, 
+    token, 
+    onRefresh, 
+    isLoading,
+    favoriteIds,
+    onToggleFavorite,
+    initialIndex = 0,
+    onIndexChange
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const isFirstRender = useRef(true);
+
+  // Handle Initial Scroll Position
+  useLayoutEffect(() => {
+    if (isFirstRender.current && containerRef.current && initialIndex > 0) {
+        // Instant scroll to the target video
+        const windowHeight = window.innerHeight; // Assuming 100dvh
+        containerRef.current.scrollTop = windowHeight * initialIndex;
+        isFirstRender.current = false;
+    }
+  }, [initialIndex]);
 
   // Intersection Observer to detect which video is currently in view
   useEffect(() => {
@@ -31,6 +56,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, serverUrl, token, onRefre
         if (entry.isIntersecting) {
           const index = Number(entry.target.getAttribute('data-index'));
           setActiveIndex(index);
+          if (onIndexChange) {
+              onIndexChange(index);
+          }
         }
       });
     };
@@ -41,20 +69,20 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, serverUrl, token, onRefre
     elements.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
-  }, [videos]);
+  }, [videos, onIndexChange]);
 
   // Empty State
   if (videos.length === 0 && !isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-white bg-black">
+      <div className="flex flex-col items-center justify-center h-full text-white bg-black pt-20">
         <Film className="w-16 h-16 text-zinc-800 mb-4" />
-        <p className="text-lg mb-2 font-bold">No videos found</p>
-        <p className="text-zinc-500 text-sm mb-6 px-8 text-center">Try changing the filter or selecting a different library.</p>
+        <p className="text-lg mb-2 font-bold">未找到视频</p>
+        <p className="text-zinc-500 text-sm mb-6 px-8 text-center">请尝试切换标签或选择其他媒体库</p>
         <button 
             onClick={onRefresh}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-full text-sm font-bold transition-colors"
         >
-            <RefreshCw className="w-4 h-4" /> Reload
+            <RefreshCw className="w-4 h-4" /> 刷新
         </button>
       </div>
     );
@@ -71,16 +99,20 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ videos, serverUrl, token, onRefre
           data-index={index}
           className="video-card-container h-[100dvh] w-full snap-center relative"
         >
-          {/* Render active, previous, and next videos */}
+          {/* Optimization: Only render video element for active, prev, and next */}
           {Math.abs(activeIndex - index) <= 1 ? (
             <VideoCard
               item={item}
-              config={{ url: serverUrl, token, username: '', userId: '' }} // Pass config object constructed here for simplicity
+              config={{ url: serverUrl, token, username: '', userId: '' }} 
               isActive={activeIndex === index}
+              isFavorite={favoriteIds.has(item.Id)}
+              onToggleFavorite={() => onToggleFavorite(item.Id, favoriteIds.has(item.Id))}
             />
           ) : (
-            // Placeholder for off-screen videos
-            <div className="w-full h-full bg-black" />
+            // Lightweight Placeholder for off-screen videos
+            <div className="w-full h-full bg-black flex items-center justify-center">
+                <div className="w-10 h-10 border-2 border-zinc-800 rounded-full animate-pulse"></div>
+            </div>
           )}
         </div>
       ))}

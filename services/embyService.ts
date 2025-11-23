@@ -45,35 +45,126 @@ export const getLibraries = async (serverUrl: string, userId: string, token: str
   return data.Items || [];
 };
 
+// --- Playlist Logic for "Tok" Favorites ---
+
+const getTokPlaylistId = async (serverUrl: string, userId: string, token: string, libraryName: string): Promise<string> => {
+    const cleanUrl = serverUrl.replace(/\/$/, "");
+    const playlistName = `Tok-${libraryName}`;
+    const headers = getHeaders(token);
+
+    // 1. Find existing playlist
+    // We use a general item search because specifically searching playlists by name can be tricky across versions
+    const searchRes = await fetch(
+        `${cleanUrl}/Users/${userId}/Items?IncludeItemTypes=Playlist&Recursive=true&Fields=Id,Name`, 
+        { headers }
+    );
+    
+    if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const existing = searchData.Items?.find((i: any) => i.Name === playlistName);
+        if (existing) return existing.Id;
+    }
+
+    // 2. Create if not found
+    const createRes = await fetch(`${cleanUrl}/Playlists?Name=${playlistName}&UserId=${userId}`, {
+        method: 'POST',
+        headers
+    });
+    
+    if (!createRes.ok) {
+        throw new Error("Failed to create Tok playlist");
+    }
+
+    const createData = await createRes.json();
+    return createData.Id;
+};
+
+export const getTokPlaylistItems = async (serverUrl: string, userId: string, token: string, libraryName: string): Promise<EmbyItem[]> => {
+    try {
+        const pid = await getTokPlaylistId(serverUrl, userId, token, libraryName);
+        const cleanUrl = serverUrl.replace(/\/$/, "");
+        // Fetch items in the playlist
+        const response = await fetch(`${cleanUrl}/Playlists/${pid}/Items?UserId=${userId}&Fields=MediaSources,Width,Height,Overview,UserData`, {
+            headers: getHeaders(token)
+        });
+        
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.Items || [];
+    } catch (e) {
+        console.error("Error fetching playlist items", e);
+        return [];
+    }
+};
+
+export const addToTokPlaylist = async (serverUrl: string, userId: string, token: string, libraryName: string, itemId: string) => {
+    const pid = await getTokPlaylistId(serverUrl, userId, token, libraryName);
+    const cleanUrl = serverUrl.replace(/\/$/, "");
+    await fetch(`${cleanUrl}/Playlists/${pid}/Items?Ids=${itemId}&UserId=${userId}`, {
+        method: 'POST',
+        headers: getHeaders(token)
+    });
+};
+
+export const removeFromTokPlaylist = async (serverUrl: string, userId: string, token: string, libraryName: string, itemId: string) => {
+    const pid = await getTokPlaylistId(serverUrl, userId, token, libraryName);
+    const cleanUrl = serverUrl.replace(/\/$/, "");
+    
+    // To delete from a playlist, we often need the EntryId (PlaylistItemId), not just the ItemId.
+    // Fetch playlist items to find the mapping.
+    const itemsRes = await fetch(`${cleanUrl}/Playlists/${pid}/Items?Fields=Id,PlaylistItemId&UserId=${userId}`, { headers: getHeaders(token) });
+    if (!itemsRes.ok) return;
+    
+    const itemsData = await itemsRes.json();
+    const entry = itemsData.Items.find((i: any) => i.Id === itemId);
+
+    if (entry && entry.PlaylistItemId) {
+         await fetch(`${cleanUrl}/Playlists/${pid}/Items?EntryIds=${entry.PlaylistItemId}`, {
+            method: 'DELETE',
+            headers: getHeaders(token)
+        });
+    }
+};
+
+// --- Main Feed Logic ---
+
 export const getVerticalVideos = async (
   serverUrl: string, 
   userId: string, 
   token: string, 
-  parentId?: string,
+  parentId: string | undefined,
+  libraryName: string, // Needed for Favorites playlist resolution
   feedType: FeedType = 'latest'
 ): Promise<EmbyItem[]> => {
+  
+  // If requesting Favorites, we fetch from the Tok Playlist instead of standard query
+  if (feedType === 'favorites') {
+      const playlistItems = await getTokPlaylistItems(serverUrl, userId, token, libraryName);
+      // Filter verticals from the playlist
+      return playlistItems.filter(item => {
+        const w = item.Width || 0;
+        const h = item.Height || 0;
+        return h >= w * 0.8 && w > 0; 
+      }).reverse(); // Show newest additions first (usually at end of playlist)
+  }
+
   const cleanUrl = serverUrl.replace(/\/$/, "");
   
   const params = new URLSearchParams({
     IncludeItemTypes: 'Movie,Video,Episode',
     Recursive: 'true',
-    Fields: 'MediaSources,Width,Height,Overview,UserData', // Added UserData
+    Fields: 'MediaSources,Width,Height,Overview,UserData', 
     Limit: '100', 
     ImageTypeLimit: '1',
     EnableImageTypes: 'Primary,Backdrop,Banner,Thumb',
+    _t: Date.now().toString()
   });
 
-  // Configure Sort and Filters based on FeedType
   if (feedType === 'random') {
     params.append('SortBy', 'Random');
   } else {
-    // Default to latest
     params.append('SortBy', 'DateCreated');
     params.append('SortOrder', 'Descending');
-  }
-
-  if (feedType === 'favorites') {
-    params.append('Filters', 'IsFavorite');
   }
 
   if (parentId) {
@@ -91,28 +182,11 @@ export const getVerticalVideos = async (
   const data = await response.json();
   const items: EmbyItem[] = data.Items || [];
 
-  // Filter for vertical(ish) videos
   return items.filter(item => {
     const w = item.Width || 0;
     const h = item.Height || 0;
-    // Allow slightly horizontal (square-ish) but prefer vertical
     return h >= w * 0.8 && w > 0; 
   });
-};
-
-export const toggleFavorite = async (serverUrl: string, userId: string, itemId: string, isFavorite: boolean, token: string): Promise<void> => {
-    const cleanUrl = serverUrl.replace(/\/$/, "");
-    const endpoint = isFavorite 
-        ? `${cleanUrl}/Users/${userId}/FavoriteItems/${itemId}`
-        : `${cleanUrl}/Users/${userId}/FavoriteItems/${itemId}/Delete`; // Emby API difference for un-favoriting might vary, but typically DELETE or POST to delete endpoint
-    
-    // Emby Standard API: POST to FavoriteItems/{Id} to favorite, DELETE to FavoriteItems/{Id} to unfavorite
-    const method = isFavorite ? 'POST' : 'DELETE';
-
-    await fetch(endpoint, {
-        method: method,
-        headers: getHeaders(token)
-    });
 };
 
 export const getVideoUrl = (serverUrl: string, itemId: string, token: string): string => {

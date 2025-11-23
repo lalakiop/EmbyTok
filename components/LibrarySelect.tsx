@@ -17,7 +17,7 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({ libraries, onSelect, sele
     <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-end">
       <div className="w-3/4 max-w-sm h-full bg-zinc-900 border-l border-zinc-800 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-          <h2 className="text-white font-bold text-xl">Libraries</h2>
+          <h2 className="text-white font-bold text-xl">媒体库</h2>
           <button onClick={onClose} className="text-white/70 hover:text-white">
             <X className="w-6 h-6" />
           </button>
@@ -34,7 +34,7 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({ libraries, onSelect, sele
             }`}
           >
             <Folder className="w-5 h-5" />
-            <span className="font-medium">All Media</span>
+            <span className="font-medium">所有媒体</span>
           </button>
           
           {libraries.map((lib) => (
@@ -48,7 +48,6 @@ const LibrarySelect: React.FC<LibrarySelectProps> = ({ libraries, onSelect, sele
                 selectedId === lib.Id ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
               }`}
             >
-              {/* Emby View Icons can be fetched, but simple folder icon works for now */}
               <Folder className="w-5 h-5" />
               <span className="font-medium">{lib.Name}</span>
             </button>

@@ -1,30 +1,26 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { EmbyItem, ServerConfig } from '../types';
-import { getVideoUrl, getImageUrl, toggleFavorite } from '../services/embyService';
+import { getVideoUrl, getImageUrl } from '../services/embyService';
 import { Play, AlertCircle, Heart, Info, Disc } from 'lucide-react';
 
 interface VideoCardProps {
   item: EmbyItem;
   config: ServerConfig;
   isActive: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive, isFavorite, onToggleFavorite }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isFavorite, setIsFavorite] = useState(item.UserData?.IsFavorite || false);
   const [showInfo, setShowInfo] = useState(false);
 
   const videoSrc = getVideoUrl(config.url, item.Id, config.token);
   const posterSrc = item.ImageTags?.Primary 
     ? getImageUrl(config.url, item.Id, item.ImageTags.Primary, 'Primary') 
     : undefined;
-
-  // Sync local state if prop changes (unlikely in this list view but good practice)
-  useEffect(() => {
-      setIsFavorite(item.UserData?.IsFavorite || false);
-  }, [item.UserData?.IsFavorite]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -64,23 +60,15 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
     }
   };
 
-  const handleFavorite = async (e: React.MouseEvent) => {
+  const handleFavorite = (e: React.MouseEvent) => {
       e.stopPropagation();
-      const newStatus = !isFavorite;
-      setIsFavorite(newStatus); // Optimistic update
-      
-      try {
-          await toggleFavorite(config.url, config.userId, item.Id, newStatus, config.token);
-      } catch (err) {
-          console.error("Failed to toggle favorite", err);
-          setIsFavorite(!newStatus); // Revert
-      }
+      onToggleFavorite();
   };
 
   const formatTime = (ticks?: number) => {
       if (!ticks) return '';
       const minutes = Math.round(ticks / 10000000 / 60);
-      return `${minutes} min`;
+      return `${minutes} 分钟`;
   }
 
   return (
@@ -93,7 +81,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
         poster={posterSrc}
         loop
         playsInline
-        onError={() => setError("Could not load video.")}
+        onError={() => setError("无法加载视频")}
         onClick={togglePlay}
       />
 
@@ -123,7 +111,6 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
                       <div className="w-full h-full flex items-center justify-center bg-indigo-600 text-xs">Emby</div>
                   )}
               </div>
-              {/* Small Plus icon could go here if we supported following users */}
           </div>
 
           {/* Heart / Favorite */}
@@ -138,7 +125,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
                   />
               </button>
               <span className="text-white text-xs font-bold shadow-black drop-shadow-md">
-                {isFavorite ? 'Liked' : 'Like'}
+                {isFavorite ? '已赞' : '点赞'}
               </span>
           </div>
 
@@ -150,7 +137,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
               >
                   <Info className="w-7 h-7 text-white drop-shadow-md" />
               </button>
-              <span className="text-white text-xs font-bold shadow-black drop-shadow-md">Info</span>
+              <span className="text-white text-xs font-bold shadow-black drop-shadow-md">信息</span>
           </div>
 
            {/* Spinning Disc (Visual Flair) */}
@@ -172,9 +159,9 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
             
             {/* Metadata Row */}
             <div className="flex items-center gap-3 text-xs text-white/90 mb-2 font-medium drop-shadow-md">
-               <span className="bg-white/20 px-1.5 py-0.5 rounded">{item.ProductionYear || 'N/A'}</span>
+               {item.ProductionYear && <span className="bg-white/20 px-1.5 py-0.5 rounded">{item.ProductionYear}</span>}
                <span>{formatTime(item.RunTimeTicks)}</span>
-               <span className="uppercase border border-white/30 px-1 rounded text-[10px]">{item.MediaType || 'Video'}</span>
+               <span className="uppercase border border-white/30 px-1 rounded text-[10px]">{item.MediaType || '视频'}</span>
             </div>
 
             {/* Description - Expandable */}
@@ -182,7 +169,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
                 onClick={(e) => { e.stopPropagation(); setShowInfo(!showInfo); }}
                 className={`text-white/80 text-sm drop-shadow-md transition-all duration-300 cursor-pointer ${showInfo ? 'line-clamp-none overflow-y-auto max-h-[40vh]' : 'line-clamp-2'}`}
             >
-                {item.Overview || 'No description available.'}
+                {item.Overview || '暂无简介'}
             </div>
             
             {!showInfo && item.Overview && (
@@ -190,7 +177,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ item, config, isActive }) => {
                     onClick={(e) => { e.stopPropagation(); setShowInfo(true); }}
                     className="text-white/60 text-xs font-semibold mt-1"
                 >
-                    more
+                    更多
                 </button>
             )}
         </div>

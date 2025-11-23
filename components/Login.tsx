@@ -36,7 +36,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       });
     } catch (err: any) {
       console.error(err);
-      setError('Connection failed. Check URL, credentials, and ensure CORS is enabled on server if using web browser.');
+      setError('连接失败。请检查地址、账号密码，并确保服务端允许跨域访问（CORS）。');
     } finally {
       setLoading(false);
     }
@@ -49,12 +49,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-600 mb-2">
             EmbyTok
             </h1>
-            <p className="text-zinc-400">Vertical Streaming Client</p>
+            <p className="text-zinc-400">Emby 竖屏客户端</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4 bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-400 uppercase">Server Address</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase">服务器地址</label>
             <div className="relative">
                 <Server className="absolute left-3 top-3 w-5 h-5 text-zinc-500" />
                 <input
@@ -69,7 +69,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-400 uppercase">Username</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase">用户名</label>
             <div className="relative">
                 <User className="absolute left-3 top-3 w-5 h-5 text-zinc-500" />
                 <input
@@ -84,14 +84,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-400 uppercase">Password</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase">密码</label>
              <div className="relative">
                 <Key className="absolute left-3 top-3 w-5 h-5 text-zinc-500" />
                 <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Optional"
+                placeholder="可选"
                 className="w-full bg-zinc-800 border-none rounded-xl py-3 pl-10 text-white placeholder-zinc-600 focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
             </div>
@@ -109,12 +109,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Connect'}
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '连接'}
           </button>
         </form>
         
         <div className="text-center text-xs text-zinc-600 px-4">
-            <p>EmbyTok is an unofficial client. Ensure your Emby server is accessible from this device.</p>
+            <p>EmbyTok 是非官方客户端。请确保该设备可以访问您的 Emby 服务器。</p>
         </div>
       </div>
     </div>
