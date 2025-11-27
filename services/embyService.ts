@@ -53,7 +53,6 @@ const getTokPlaylistId = async (serverUrl: string, userId: string, token: string
     const headers = getHeaders(token);
 
     // 1. Find existing playlist
-    // We use a general item search because specifically searching playlists by name can be tricky across versions
     const searchRes = await fetch(
         `${cleanUrl}/Users/${userId}/Items?IncludeItemTypes=Playlist&Recursive=true&Fields=Id,Name`, 
         { headers }
@@ -110,8 +109,6 @@ export const removeFromTokPlaylist = async (serverUrl: string, userId: string, t
     const pid = await getTokPlaylistId(serverUrl, userId, token, libraryName);
     const cleanUrl = serverUrl.replace(/\/$/, "");
     
-    // To delete from a playlist, we often need the EntryId (PlaylistItemId), not just the ItemId.
-    // Fetch playlist items to find the mapping.
     const itemsRes = await fetch(`${cleanUrl}/Playlists/${pid}/Items?Fields=Id,PlaylistItemId&UserId=${userId}`, { headers: getHeaders(token) });
     if (!itemsRes.ok) return;
     
@@ -128,33 +125,58 @@ export const removeFromTokPlaylist = async (serverUrl: string, userId: string, t
 
 // --- Main Feed Logic ---
 
+export interface VideoResponse {
+    items: EmbyItem[];
+    nextStartIndex: number;
+    totalCount: number;
+}
+
 export const getVerticalVideos = async (
   serverUrl: string, 
   userId: string, 
   token: string, 
   parentId: string | undefined,
-  libraryName: string, // Needed for Favorites playlist resolution
-  feedType: FeedType = 'latest'
-): Promise<EmbyItem[]> => {
+  libraryName: string,
+  feedType: FeedType = 'latest',
+  skip: number = 0,
+  limit: number = 20
+): Promise<VideoResponse> => {
   
-  // If requesting Favorites, we fetch from the Tok Playlist instead of standard query
+  // If requesting Favorites, we fetch from the Tok Playlist
   if (feedType === 'favorites') {
       const playlistItems = await getTokPlaylistItems(serverUrl, userId, token, libraryName);
-      // Filter verticals from the playlist
-      return playlistItems.filter(item => {
+      
+      // Filter for vertical
+      const filtered = playlistItems.filter(item => {
         const w = item.Width || 0;
         const h = item.Height || 0;
         return h >= w * 0.8 && w > 0; 
-      }).reverse(); // Show newest additions first (usually at end of playlist)
+      });
+
+      // Default playlist order is usually append-order.
+      // Reversing gives us "newest added to playlist" first.
+      const reversed = filtered.reverse();
+      
+      const paged = reversed.slice(skip, skip + limit);
+      return {
+          items: paged,
+          nextStartIndex: skip + limit,
+          totalCount: reversed.length
+      };
   }
 
   const cleanUrl = serverUrl.replace(/\/$/, "");
   
+  // We fetch a larger batch than the requested 'limit' because we filter out horizontal videos.
+  // This ensures we hopefully get enough vertical videos to fill the UI request.
+  const FETCH_BATCH_SIZE = 50; 
+
   const params = new URLSearchParams({
     IncludeItemTypes: 'Movie,Video,Episode',
     Recursive: 'true',
     Fields: 'MediaSources,Width,Height,Overview,UserData', 
-    Limit: '100', 
+    Limit: FETCH_BATCH_SIZE.toString(),
+    StartIndex: skip.toString(),
     ImageTypeLimit: '1',
     EnableImageTypes: 'Primary,Backdrop,Banner,Thumb',
     _t: Date.now().toString()
@@ -163,6 +185,7 @@ export const getVerticalVideos = async (
   if (feedType === 'random') {
     params.append('SortBy', 'Random');
   } else {
+    // Force strict sorting for Latest
     params.append('SortBy', 'DateCreated');
     params.append('SortOrder', 'Descending');
   }
@@ -180,13 +203,21 @@ export const getVerticalVideos = async (
   }
 
   const data = await response.json();
-  const items: EmbyItem[] = data.Items || [];
+  const rawItems: EmbyItem[] = data.Items || [];
+  const totalCount = data.TotalRecordCount || 0;
 
-  return items.filter(item => {
+  const filteredItems = rawItems.filter(item => {
     const w = item.Width || 0;
     const h = item.Height || 0;
     return h >= w * 0.8 && w > 0; 
   });
+
+  return {
+      items: filteredItems,
+      // The cursor for the next call should be: current Skip + how many items we actually fetched from server (not how many remain after filter)
+      nextStartIndex: skip + rawItems.length,
+      totalCount: totalCount
+  };
 };
 
 export const getVideoUrl = (serverUrl: string, itemId: string, token: string): string => {

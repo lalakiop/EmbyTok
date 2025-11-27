@@ -1,3 +1,14 @@
+
+export type ServerType = 'emby' | 'plex';
+
+export interface ServerConfig {
+  url: string;
+  username: string;
+  token: string;
+  userId: string;
+  serverType: ServerType;
+}
+
 export interface EmbyAuthResponse {
   User: {
     Id: string;
@@ -23,6 +34,7 @@ export interface MediaSource {
   Protocol: string;
 }
 
+// Using a generic name but keeping compatibility with existing code structure
 export interface EmbyItem {
   Id: string;
   Name: string;
@@ -46,11 +58,10 @@ export interface EmbyItem {
   };
 }
 
-export interface ServerConfig {
-  url: string;
-  username: string;
-  token: string;
-  userId: string;
-}
-
 export type FeedType = 'latest' | 'random' | 'favorites';
+
+export interface VideoResponse {
+    items: EmbyItem[];
+    nextStartIndex: number;
+    totalCount: number;
+}
