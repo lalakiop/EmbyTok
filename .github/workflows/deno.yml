@@ -11,46 +11,46 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 步骤 1：拉取仓库源码
+      # 1. 拉取源码
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # 步骤 2：配置 Node.js 环境
+      # 2. 配置 Node.js 环境
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'  # 兼容项目的 Node 版本
+          node-version: '20'
           cache: 'npm'
           
-      # 步骤 3：安装前端依赖
+      # 3. 安装前端依赖
       - name: Install npm dependencies
         run: npm install
         
-      # 步骤 4：构建前端生产包
+      # 4. 构建前端生产包
       - name: Build frontend
         run: npm run build
         
-      # 步骤 5：配置 Android SDK 环境（Capacitor 依赖）
+      # 5. 配置 Android SDK 环境
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         
-      # 步骤 6：添加 Android 平台到 Capacitor
+      # 6. 添加 Android 平台
       - name: Add Android platform
         run: npx cap add android
         
-      # 步骤 7：同步 Capacitor 项目
+      # 7. 同步 Capacitor 项目
       - name: Sync Capacitor
         run: npx cap sync
         
-      # 步骤 8：授予 gradlew 执行权限
+      # 8. 授予 gradlew 执行权限
       - name: Grant execute permission for gradlew
         run: chmod +x ./android/gradlew
         
-      # 步骤 9：构建 Release 版本 APK
+      # 9. 构建 Release APK
       - name: Build Release APK
         run: cd android && ./gradlew assembleRelease --stacktrace
         
-      # 步骤 10：上传 APK 作为构建产物（可下载）
+      # 10. 上传 APK 产物
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
